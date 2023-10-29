@@ -601,6 +601,12 @@ func validateOIDCClientScopes(c int, config *schema.IdentityProvidersOpenIDConne
 		validator.PushWarning(fmt.Errorf(errFmtOIDCClientInvalidEntryDuplicates, config.Clients[c].ID, attrOIDCScopes, strJoinAnd(duplicates)))
 	}
 
+	if !config.Discovery.BearerAuthorization {
+		if utils.IsStringInSlice(oidc.ScopeAutheliaAuthzBearer, config.Clients[c].Scopes) {
+			config.Discovery.BearerAuthorization = true
+		}
+	}
+
 	if utils.IsStringInSlice(oidc.GrantTypeClientCredentials, config.Clients[c].GrantTypes) {
 		validateOIDCClientScopesClientCredentialsGrant(c, config, validator)
 	} else {

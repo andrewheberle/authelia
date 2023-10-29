@@ -567,6 +567,53 @@ func TestServerAuthzEndpointErrors(t *testing.T) {
 	}
 }
 
+func TestServerAuthzEndpointDefaults(t *testing.T) {
+	testCases := []struct {
+		name     string
+		have     map[string]schema.ServerEndpointsAuthz
+		expected map[string]schema.ServerEndpointsAuthz
+	}{
+		{
+			"ShouldSetDefaultSchemes",
+			map[string]schema.ServerEndpointsAuthz{
+				"example": {Implementation: "ForwardAuth", AuthnStrategies: []schema.ServerEndpointsAuthzAuthnStrategy{
+					{
+						"HeaderAuthorization",
+						[]string{},
+					},
+				}},
+			},
+			map[string]schema.ServerEndpointsAuthz{
+				"example": {Implementation: "ForwardAuth", AuthnStrategies: []schema.ServerEndpointsAuthzAuthnStrategy{
+					{
+						"HeaderAuthorization",
+						[]string{"basic"},
+					},
+				}},
+			},
+		},
+	}
+
+	validator := schema.NewStructValidator()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			validator.Clear()
+
+			config := newDefaultConfig()
+
+			config.Server.Endpoints.Authz = tc.have
+
+			ValidateServerEndpoints(&config, validator)
+
+			assert.Len(t, validator.Warnings(), 0)
+			assert.Len(t, validator.Errors(), 0)
+
+			assert.Equal(t, tc.expected, config.Server.Endpoints.Authz)
+		})
+	}
+}
+
 func TestServerAuthzEndpointLegacyAsImplementationLegacyWhenBlank(t *testing.T) {
 	have := map[string]schema.ServerEndpointsAuthz{
 		"legacy": {},
@@ -583,7 +630,7 @@ func TestServerAuthzEndpointLegacyAsImplementationLegacyWhenBlank(t *testing.T) 
 	assert.Len(t, validator.Warnings(), 0)
 	assert.Len(t, validator.Errors(), 0)
 
-	assert.Equal(t, authzImplementationLegacy, config.Server.Endpoints.Authz[legacy].Implementation)
+	assert.Equal(t, schema.AuthzImplementationLegacy, config.Server.Endpoints.Authz[legacy].Implementation)
 }
 
 func TestValidateTLSPathStatInvalidArgument(t *testing.T) {

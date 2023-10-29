@@ -63,6 +63,10 @@ func (b *AuthzBuilder) WithConfig(config *schema.Configuration) *AuthzBuilder {
 		RefreshInterval: config.AuthenticationBackend.RefreshInterval,
 	}
 
+	if config.IdentityProviders.OIDC != nil {
+		b.config.EnableBearerScheme = config.IdentityProviders.OIDC.Discovery.BearerAuthorization
+	}
+
 	return b
 }
 
@@ -87,11 +91,11 @@ func (b *AuthzBuilder) WithEndpointConfig(config schema.ServerEndpointsAuthz) *A
 		case AuthnStrategyCookieSession:
 			b.strategies = append(b.strategies, NewCookieSessionAuthnStrategy(b.config.RefreshInterval))
 		case AuthnStrategyHeaderAuthorization:
-			b.strategies = append(b.strategies, NewHeaderAuthorizationAuthnStrategy())
+			b.strategies = append(b.strategies, NewHeaderAuthorizationAuthnStrategy(b.config.EnableBearerScheme))
 		case AuthnStrategyHeaderProxyAuthorization:
-			b.strategies = append(b.strategies, NewHeaderProxyAuthorizationAuthnStrategy())
+			b.strategies = append(b.strategies, NewHeaderProxyAuthorizationAuthnStrategy(b.config.EnableBearerScheme))
 		case AuthnStrategyHeaderAuthRequestProxyAuthorization:
-			b.strategies = append(b.strategies, NewHeaderProxyAuthorizationAuthRequestAuthnStrategy())
+			b.strategies = append(b.strategies, NewHeaderProxyAuthorizationAuthRequestAuthnStrategy(b.config.EnableBearerScheme))
 		case AuthnStrategyHeaderLegacy:
 			b.strategies = append(b.strategies, NewHeaderLegacyAuthnStrategy())
 		}
@@ -116,9 +120,9 @@ func (b *AuthzBuilder) Build() (authz *Authz) {
 		case AuthzImplLegacy:
 			authz.strategies = []AuthnStrategy{NewHeaderLegacyAuthnStrategy(), NewCookieSessionAuthnStrategy(b.config.RefreshInterval)}
 		case AuthzImplAuthRequest:
-			authz.strategies = []AuthnStrategy{NewHeaderProxyAuthorizationAuthRequestAuthnStrategy(), NewCookieSessionAuthnStrategy(b.config.RefreshInterval)}
+			authz.strategies = []AuthnStrategy{NewHeaderProxyAuthorizationAuthRequestAuthnStrategy(b.config.EnableBearerScheme), NewCookieSessionAuthnStrategy(b.config.RefreshInterval)}
 		default:
-			authz.strategies = []AuthnStrategy{NewHeaderProxyAuthorizationAuthnStrategy(), NewCookieSessionAuthnStrategy(b.config.RefreshInterval)}
+			authz.strategies = []AuthnStrategy{NewHeaderProxyAuthorizationAuthnStrategy(b.config.EnableBearerScheme), NewCookieSessionAuthnStrategy(b.config.RefreshInterval)}
 		}
 	}
 

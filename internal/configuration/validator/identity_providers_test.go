@@ -475,7 +475,7 @@ func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadScopes(t *testing.T) {
 	ValidateIdentityProviders(config, validator)
 
 	require.Len(t, validator.Errors(), 1)
-	assert.EqualError(t, validator.Errors()[0], "identity_providers: oidc: clients: client 'good_id': option 'scopes' must only have the values 'openid', 'email', 'profile', 'groups', or 'offline_access' but the values 'bad_scope' are present")
+	assert.EqualError(t, validator.Errors()[0], "identity_providers: oidc: clients: client 'good_id': option 'scopes' must only have the values 'openid', 'email', 'profile', 'groups', 'offline_access', or 'authelia.authz.bearer' but the values 'bad_scope' are present")
 }
 
 func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadGrantTypes(t *testing.T) {
@@ -1047,7 +1047,7 @@ func TestValidateOIDCClients(t *testing.T) {
 			},
 			nil,
 			[]string{
-				"identity_providers: oidc: clients: client 'test': option 'scopes' must only have the values 'openid', 'email', 'profile', 'groups', or 'offline_access' but the values 'group' are present",
+				"identity_providers: oidc: clients: client 'test': option 'scopes' must only have the values 'openid', 'email', 'profile', 'groups', 'offline_access', or 'authelia.authz.bearer' but the values 'group' are present",
 			},
 		},
 		{

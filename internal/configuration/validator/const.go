@@ -366,6 +366,7 @@ const (
 
 	errFmtServerEndpointsAuthzImplementation    = "server: endpoints: authz: %s: option 'implementation' must be one of %s but it's configured as '%s'"
 	errFmtServerEndpointsAuthzStrategy          = "server: endpoints: authz: %s: authn_strategies: option 'name' must be one of %s but it's configured as '%s'"
+	errFmtServerEndpointsAuthzStrategyNoName    = "server: endpoints: authz: %s: authn_strategies: option 'name' must be configured"
 	errFmtServerEndpointsAuthzStrategyDuplicate = "server: endpoints: authz: %s: authn_strategies: duplicate strategy name detected with name '%s'"
 	errFmtServerEndpointsAuthzPrefixDuplicate   = "server: endpoints: authz: %s: endpoint starts with the same prefix as the '%s' endpoint with the '%s' implementation which accepts prefixes as part of its implementation"
 	errFmtServerEndpointsAuthzInvalidName       = "server: endpoints: authz: %s: contains invalid characters"
@@ -412,9 +413,7 @@ const (
 )
 
 const (
-	legacy                      = "legacy"
-	authzImplementationLegacy   = "Legacy"
-	authzImplementationExtAuthz = "ExtAuthz"
+	legacy = "legacy"
 )
 
 const (
@@ -422,8 +421,10 @@ const (
 )
 
 var (
-	validAuthzImplementations = []string{"AuthRequest", "ForwardAuth", authzImplementationExtAuthz, authzImplementationLegacy}
-	validAuthzAuthnStrategies = []string{"CookieSession", "HeaderAuthorization", "HeaderProxyAuthorization", "HeaderAuthRequestProxyAuthorization", "HeaderLegacy"}
+	validAuthzImplementations       = []string{schema.AuthzImplementationAuthRequest, schema.AuthzImplementationForwardAuth, schema.AuthzImplementationExtAuthz, schema.AuthzImplementationLegacy}
+	validAuthzAuthnStrategies       = []string{schema.AuthzStrategyHeaderCookieSession, schema.AuthzStrategyHeaderAuthorization, schema.AuthzStrategyHeaderProxyAuthorization, schema.AuthzStrategyHeaderAuthRequestProxyAuthorization, schema.AuthzStrategyHeaderLegacy}
+	validAuthzAuthnHeaderStrategies = []string{schema.AuthzStrategyHeaderAuthorization, schema.AuthzStrategyHeaderProxyAuthorization, schema.AuthzStrategyHeaderAuthRequestProxyAuthorization}
+	validAuthzAuthnStrategySchemes  = []string{schema.SchemeBasic, schema.SchemeBearer}
 )
 
 var (
@@ -501,7 +502,7 @@ const (
 var (
 	validOIDCCORSEndpoints = []string{oidc.EndpointAuthorization, oidc.EndpointPushedAuthorizationRequest, oidc.EndpointToken, oidc.EndpointIntrospection, oidc.EndpointRevocation, oidc.EndpointUserinfo}
 
-	validOIDCClientScopes                    = []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile, oidc.ScopeGroups, oidc.ScopeOfflineAccess}
+	validOIDCClientScopes                    = []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile, oidc.ScopeGroups, oidc.ScopeOfflineAccess, oidc.ScopeAutheliaAuthzBearer}
 	validOIDCClientConsentModes              = []string{auto, oidc.ClientConsentModeImplicit.String(), oidc.ClientConsentModeExplicit.String(), oidc.ClientConsentModePreConfigured.String()}
 	validOIDCClientResponseModes             = []string{oidc.ResponseModeFormPost, oidc.ResponseModeQuery, oidc.ResponseModeFragment, oidc.ResponseModeJWT, oidc.ResponseModeFormPostJWT, oidc.ResponseModeQueryJWT, oidc.ResponseModeFragmentJWT}
 	validOIDCClientResponseTypes             = []string{oidc.ResponseTypeAuthorizationCodeFlow, oidc.ResponseTypeImplicitFlowIDToken, oidc.ResponseTypeImplicitFlowToken, oidc.ResponseTypeImplicitFlowBoth, oidc.ResponseTypeHybridFlowIDToken, oidc.ResponseTypeHybridFlowToken, oidc.ResponseTypeHybridFlowBoth}
