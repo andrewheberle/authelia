@@ -58,7 +58,7 @@ func (s *HandlerSignTOTPSuite) TestShouldRedirectUserToDefaultURL() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -109,7 +109,7 @@ func (s *HandlerSignTOTPSuite) TestShouldFailWhenTOTPSignInInfoFailsToUpdate() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -157,7 +157,7 @@ func (s *HandlerSignTOTPSuite) TestShouldNotReturnRedirectURL() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -212,7 +212,7 @@ func (s *HandlerSignTOTPSuite) TestShouldRedirectUserToSafeTargetURL() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -253,6 +253,59 @@ func (s *HandlerSignTOTPSuite) TestShouldRedirectUserToSafeTargetURL() {
 	})
 }
 
+func (s *HandlerSignTOTPSuite) TestShouldRedirectUserToSafeTargetURLDisableReusePolicy() {
+	config := model.TOTPConfiguration{ID: 1, Username: testUsername, Digits: 6, Secret: []byte("secret"), Period: 30, Algorithm: "SHA1"}
+	s.mock.Ctx.Configuration.Session.Cookies = []schema.SessionCookie{
+		{
+			Domain: "example.com",
+		},
+		{
+			Domain: "mydomain.local",
+		},
+	}
+
+	s.mock.Ctx.Configuration.TOTP.DisableReuseSecurityPolicy = true
+
+	gomock.InOrder(
+		s.mock.StorageMock.
+			EXPECT().
+			LoadTOTPConfiguration(s.mock.Ctx, gomock.Any()).
+			Return(&config, nil),
+		s.mock.TOTPMock.
+			EXPECT().
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
+			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
+		s.mock.StorageMock.
+			EXPECT().
+			AppendAuthenticationLog(s.mock.Ctx, gomock.Eq(model.AuthenticationAttempt{
+				Username:   testUsername,
+				Successful: true,
+				Banned:     false,
+				Time:       s.mock.Clock.Now(),
+				Type:       regulation.AuthTypeTOTP,
+				RemoteIP:   model.NewNullIPFromString("0.0.0.0"),
+			})).
+			Return(nil),
+		s.mock.StorageMock.
+			EXPECT().
+			UpdateTOTPConfigurationSignIn(s.mock.Ctx, gomock.Any(), gomock.Any()).
+			Return(nil),
+	)
+
+	bodyBytes, err := json.Marshal(bodySignTOTPRequest{
+		Token:     "abc",
+		TargetURL: "https://mydomain.example.com",
+	})
+
+	s.Require().NoError(err)
+	s.mock.Ctx.Request.SetBody(bodyBytes)
+
+	TimeBasedOneTimePasswordPOST(s.mock.Ctx)
+	s.mock.Assert200OK(s.T(), redirectResponse{
+		Redirect: "https://mydomain.example.com",
+	})
+}
+
 func (s *HandlerSignTOTPSuite) TestShouldNotRedirectToUnsafeURL() {
 	gomock.InOrder(
 		s.mock.StorageMock.
@@ -260,7 +313,7 @@ func (s *HandlerSignTOTPSuite) TestShouldNotRedirectToUnsafeURL() {
 			LoadTOTPConfiguration(s.mock.Ctx, testUsername).
 			Return(&model.TOTPConfiguration{Secret: []byte("secret"), Period: 30}, nil),
 		s.mock.TOTPMock.EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&model.TOTPConfiguration{Secret: []byte("secret"), Period: 30})).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&model.TOTPConfiguration{Secret: []byte("secret"), Period: 30})).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -309,7 +362,7 @@ func (s *HandlerSignTOTPSuite) TestShouldRegenerateSessionForPreventingSessionFi
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -363,7 +416,7 @@ func (s *HandlerSignTOTPSuite) TestShouldHandleErrorSaveHistory() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -397,7 +450,7 @@ func (s *HandlerSignTOTPSuite) TestShouldHandleErrorExistsHistory() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -427,7 +480,7 @@ func (s *HandlerSignTOTPSuite) TestShouldHandleExistsHistory() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -521,7 +574,7 @@ func (s *HandlerSignTOTPSuite) TestShouldReturnErrorOnInvalidValue() {
 			LoadTOTPConfiguration(s.mock.Ctx, gomock.Any()).
 			Return(&config, nil),
 		s.mock.TOTPMock.EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(false, uint64(0), fmt.Errorf("invalid")),
 	)
 
@@ -554,7 +607,7 @@ func (s *HandlerSignTOTPSuite) TestShouldReturnErrorOnInvalidBoolean() {
 			Return(&config, nil),
 		s.mock.TOTPMock.
 			EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(false, uint64(0), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -596,7 +649,7 @@ func (s *HandlerSignTOTPSuite) TestShouldReturnErrorOnInvalidBooleanMarkErr() {
 			LoadTOTPConfiguration(s.mock.Ctx, gomock.Any()).
 			Return(&config, nil),
 		s.mock.TOTPMock.EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(false, uint64(0), nil),
 		s.mock.StorageMock.
 			EXPECT().
@@ -653,7 +706,7 @@ func (s *HandlerSignTOTPSuite) TestShouldReturnErrorOnInvalidBooleanMarkErrSucce
 			LoadTOTPConfiguration(s.mock.Ctx, gomock.Any()).
 			Return(&config, nil),
 		s.mock.TOTPMock.EXPECT().
-			Validate(gomock.Eq("abc"), gomock.Eq(&config)).
+			Validate(s.mock.Ctx, gomock.Eq("abc"), gomock.Eq(&config)).
 			Return(true, getStepTOTP(s.mock.Ctx, -1), nil),
 		s.mock.StorageMock.
 			EXPECT().

@@ -127,9 +127,13 @@ func TestTOTPRegisterPUT(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().Options().Return(*totp.NewTOTPOptionsFromSchema(mock.Ctx.Configuration.TOTP)),
-					mock.TOTPMock.EXPECT().
-						GenerateCustom(testUsername, mock.Ctx.Configuration.TOTP.DefaultAlgorithm, "", uint(mock.Ctx.Configuration.TOTP.DefaultDigits), uint(mock.Ctx.Configuration.TOTP.DefaultPeriod), uint(0)).
+					mock.TOTPMock.
+						EXPECT().
+						Options().
+						Return(*totp.NewTOTPOptionsFromSchema(mock.Ctx.Configuration.TOTP)),
+					mock.TOTPMock.
+						EXPECT().
+						GenerateCustom(mock.Ctx, testUsername, mock.Ctx.Configuration.TOTP.DefaultAlgorithm, "", uint(mock.Ctx.Configuration.TOTP.DefaultDigits), uint(mock.Ctx.Configuration.TOTP.DefaultPeriod), uint(0)).
 						Return(&model.TOTPConfiguration{Username: testUsername, Algorithm: mock.Ctx.Configuration.TOTP.DefaultAlgorithm, Digits: uint(mock.Ctx.Configuration.TOTP.DefaultDigits), Period: uint(mock.Ctx.Configuration.TOTP.DefaultPeriod)}, nil),
 				)
 			},
@@ -216,9 +220,13 @@ func TestTOTPRegisterPUT(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().Options().Return(*totp.NewTOTPOptionsFromSchema(mock.Ctx.Configuration.TOTP)),
-					mock.TOTPMock.EXPECT().
-						GenerateCustom(testUsername, mock.Ctx.Configuration.TOTP.DefaultAlgorithm, "", uint(mock.Ctx.Configuration.TOTP.DefaultDigits), uint(mock.Ctx.Configuration.TOTP.DefaultPeriod), uint(0)).
+					mock.TOTPMock.
+						EXPECT().
+						Options().
+						Return(*totp.NewTOTPOptionsFromSchema(mock.Ctx.Configuration.TOTP)),
+					mock.TOTPMock.
+						EXPECT().
+						GenerateCustom(mock.Ctx, testUsername, mock.Ctx.Configuration.TOTP.DefaultAlgorithm, "", uint(mock.Ctx.Configuration.TOTP.DefaultDigits), uint(mock.Ctx.Configuration.TOTP.DefaultPeriod), uint(0)).
 						Return(nil, fmt.Errorf("no issuer")),
 				)
 			},
@@ -335,6 +343,10 @@ func TestTOTPRegisterDELETE(t *testing.T) {
 }
 
 func TestTOTPRegisterPOST(t *testing.T) {
+	intPtr := func(in int) *int {
+		return &in
+	}
+
 	testCases := []struct {
 		name           string
 		config         schema.TOTP
@@ -469,11 +481,10 @@ func TestTOTPRegisterPOST(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().
-						Validate(
-							"012345",
-							&model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)},
-						).Return(false, uint64(0), nil),
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(false, uint64(0), nil),
 				)
 			},
 			`{"status":"KO","message":"Unable to set up one-time password."}`,
@@ -505,11 +516,10 @@ func TestTOTPRegisterPOST(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().
-						Validate(
-							"012345",
-							&model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)},
-						).Return(false, uint64(0), fmt.Errorf("pink staple")),
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(false, uint64(0), fmt.Errorf("pink staple")),
 				)
 			},
 			`{"status":"KO","message":"Unable to set up one-time password."}`,
@@ -541,19 +551,82 @@ func TestTOTPRegisterPOST(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().
-						Validate(
-							"012345",
-							&model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)},
-						).Return(true, getStepTOTP(mock.Ctx, -1), nil),
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(true, getStepTOTP(mock.Ctx, -1), nil),
 					mock.StorageMock.
 						EXPECT().
 						SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).
 						Return(nil),
-					mock.StorageMock.EXPECT().
-						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).Return(nil),
-					mock.UserProviderMock.EXPECT().GetDetails(testUsername).Return(&authentication.UserDetails{Username: testUsername, DisplayName: testDisplayName, Emails: []string{"john@example.com"}}, nil),
-					mock.NotifierMock.EXPECT().Send(mock.Ctx, mail.Address{Name: testDisplayName, Address: "john@example.com"}, "Second Factor Method Added", gomock.Any(), gomock.Any()).Return(nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(nil),
+					mock.UserProviderMock.
+						EXPECT().
+						GetDetails(testUsername).
+						Return(&authentication.UserDetails{Username: testUsername, DisplayName: testDisplayName, Emails: []string{"john@example.com"}}, nil),
+					mock.NotifierMock.
+						EXPECT().
+						Send(mock.Ctx, mail.Address{Name: testDisplayName, Address: "john@example.com"}, "Second Factor Method Added", gomock.Any(), gomock.Any()).
+						Return(nil),
+				)
+			},
+			`{"status":"OK"}`,
+			fasthttp.StatusOK,
+			nil,
+		},
+		{
+			"ShouldSaveGoodCodeDisableReusePolicy",
+			schema.TOTP{
+				Issuer:                     "Authelia",
+				DefaultAlgorithm:           schema.TOTPAlgorithmSHA1,
+				DefaultDigits:              6,
+				DefaultPeriod:              30,
+				Skew:                       intPtr(1),
+				SecretSize:                 schema.TOTPSecretSizeDefault,
+				AllowedAlgorithms:          []string{schema.TOTPAlgorithmSHA1},
+				AllowedDigits:              []int{6},
+				AllowedPeriods:             []int{30},
+				DisableReuseSecurityPolicy: true,
+			},
+			`{"token":"012345"}`,
+			func(t *testing.T, mock *mocks.MockAutheliaCtx) {
+				us, err := mock.Ctx.GetSession()
+
+				require.NoError(t, err)
+
+				us.Username = testUsername
+				us.AuthenticationLevel = authentication.OneFactor
+				us.TOTP = &session.TOTP{
+					Issuer:    "abc",
+					Algorithm: "SHA1",
+					Digits:    6,
+					Period:    30,
+					Secret:    testBASE32TOTPSecret,
+					Expires:   mock.Clock.Now().Add(time.Minute),
+				}
+
+				require.NoError(t, mock.Ctx.SaveSession(us))
+
+				gomock.InOrder(
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(true, getStepTOTP(mock.Ctx, -1), nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(nil),
+					mock.UserProviderMock.
+						EXPECT().
+						GetDetails(testUsername).
+						Return(&authentication.UserDetails{Username: testUsername, DisplayName: testDisplayName, Emails: []string{"john@example.com"}}, nil),
+					mock.NotifierMock.
+						EXPECT().
+						Send(mock.Ctx, mail.Address{Name: testDisplayName, Address: "john@example.com"}, "Second Factor Method Added", gomock.Any(), gomock.Any()).
+						Return(nil),
 				)
 			},
 			`{"status":"OK"}`,
@@ -583,16 +656,26 @@ func TestTOTPRegisterPOST(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().
-						Validate(
-							"012345",
-							&model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)},
-						).Return(true, getStepTOTP(mock.Ctx, -1), nil),
-					mock.StorageMock.EXPECT().SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).Return(nil),
-					mock.StorageMock.EXPECT().
-						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).Return(nil),
-					mock.UserProviderMock.EXPECT().GetDetails(testUsername).Return(&authentication.UserDetails{Username: testUsername, DisplayName: testDisplayName, Emails: []string{"john@example.com"}}, nil),
-					mock.NotifierMock.EXPECT().Send(mock.Ctx, mail.Address{Name: testDisplayName, Address: "john@example.com"}, "Second Factor Method Added", gomock.Any(), gomock.Any()).Return(fmt.Errorf("kittens")),
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(true, getStepTOTP(mock.Ctx, -1), nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).
+						Return(nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(nil),
+					mock.UserProviderMock.
+						EXPECT().
+						GetDetails(testUsername).
+						Return(&authentication.UserDetails{Username: testUsername, DisplayName: testDisplayName, Emails: []string{"john@example.com"}}, nil),
+					mock.NotifierMock.
+						EXPECT().
+						Send(mock.Ctx, mail.Address{Name: testDisplayName, Address: "john@example.com"}, "Second Factor Method Added", gomock.Any(), gomock.Any()).
+						Return(fmt.Errorf("kittens")),
 				)
 			},
 			`{"status":"OK"}`,
@@ -624,15 +707,22 @@ func TestTOTPRegisterPOST(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().
-						Validate(
-							"012345",
-							&model.TOTPConfiguration{CreatedAt: mock.Ctx.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)},
-						).Return(true, getStepTOTP(mock.Ctx, -1), nil),
-					mock.StorageMock.EXPECT().SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).Return(nil),
-					mock.StorageMock.EXPECT().
-						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).Return(nil),
-					mock.UserProviderMock.EXPECT().GetDetails(testUsername).Return(&authentication.UserDetails{Username: testUsername, DisplayName: testDisplayName}, nil),
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Ctx.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(true, getStepTOTP(mock.Ctx, -1), nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).
+						Return(nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(nil),
+					mock.UserProviderMock.
+						EXPECT().
+						GetDetails(testUsername).
+						Return(&authentication.UserDetails{Username: testUsername, DisplayName: testDisplayName}, nil),
 				)
 			},
 			`{"status":"OK"}`,
@@ -664,15 +754,22 @@ func TestTOTPRegisterPOST(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().
-						Validate(
-							"012345",
-							&model.TOTPConfiguration{CreatedAt: mock.Ctx.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)},
-						).Return(true, getStepTOTP(mock.Ctx, -1), nil),
-					mock.StorageMock.EXPECT().SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).Return(nil),
-					mock.StorageMock.EXPECT().
-						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).Return(nil),
-					mock.UserProviderMock.EXPECT().GetDetails(testUsername).Return(nil, fmt.Errorf("lookup failure")),
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Ctx.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(true, getStepTOTP(mock.Ctx, -1), nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).
+						Return(nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(nil),
+					mock.UserProviderMock.
+						EXPECT().
+						GetDetails(testUsername).
+						Return(nil, fmt.Errorf("lookup failure")),
 				)
 			},
 			`{"status":"OK"}`,
@@ -704,14 +801,18 @@ func TestTOTPRegisterPOST(t *testing.T) {
 				require.NoError(t, mock.Ctx.SaveSession(us))
 
 				gomock.InOrder(
-					mock.TOTPMock.EXPECT().
-						Validate(
-							"012345",
-							&model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)},
-						).Return(true, getStepTOTP(mock.Ctx, -1), nil),
-					mock.StorageMock.EXPECT().SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).Return(nil),
-					mock.StorageMock.EXPECT().
-						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).Return(fmt.Errorf("failed to connect")),
+					mock.TOTPMock.
+						EXPECT().
+						Validate(mock.Ctx, "012345", &model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(true, getStepTOTP(mock.Ctx, -1), nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPHistory(mock.Ctx, "john", uint64(1701295890)).
+						Return(nil),
+					mock.StorageMock.
+						EXPECT().
+						SaveTOTPConfiguration(mock.Ctx, model.TOTPConfiguration{CreatedAt: mock.Clock.Now(), Username: testUsername, Issuer: "abc", Algorithm: "SHA1", Period: 30, Digits: 6, Secret: []byte(testBASE32TOTPSecret)}).
+						Return(fmt.Errorf("failed to connect")),
 				)
 			},
 			`{"status":"KO","message":"Unable to set up one-time password."}`,
